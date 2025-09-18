@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Générateur de Facture</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px;}
+    h1 { text-align: center; color: #1428A0; }
+    .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);}
+    .form-group { margin-bottom: 12px; }
+    label { display: block; margin-bottom: 4px; font-weight: bold; }
+    input[type=text], input[type=number] { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    table, th, td { border: 1px solid #ccc; }
+    th, td { padding: 8px; text-align: center; }
+    th { background: #1428A0; color: #fff; }
+    button { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; background: #1428A0; color: #fff; margin-top: 10px; }
+    button:hover { background: #0f1f80; }
+    .invoice-list { margin-top: 30px; }
+    .invoice-list li { padding: 8px; border-bottom: 1px solid #ccc; cursor: pointer; }
+    .invoice-list li:hover { background: #e6e6ff; }
+    .total-display { font-size: 18px; font-weight: bold; margin-top: 10px; text-align: right; }
+</style>
+</head>
+<body>
+
+<h1>Générateur de Facture</h1>
+
+<div class="container">
+    <h2>Infos Client</h2>
+    <div class="form-group">
+        <label>Nom du client :</label>
+        <input type="text" id="clientName">
+    </div>
+    <div class="form-group">
+        <label>Téléphone :</label>
+        <input type="text" id="clientPhone">
+    </div>
+    <div class="form-group">
+        <label>Adresse :</label>
+        <input type="text" id="clientAddress">
+    </div>
+
+    <h2>Produits</h2>
+    <table id="productsTable">
+        <thead>
+            <tr>
+                <th>Nom produit</th>
+                <th>Quantité</th>
+                <th>Prix unitaire</th>
+                <th>Total</th>
+                <th>Supprimer</th>
+            </tr>
+        </thead>
+        <tbody id="productsBody">
+            <tr>
+                <td><input type="text" class="productName"></td>
+                <td><input type="number" class="productQty" value="0" min="0"></td>
+                <td><input type="number" class="productPrice" value="0" min="0"></td>
+                <td class="productTotal">0</td>
+                <td><button onclick="removeRow(this)">X</button></td>
+            </tr>
+        </tbody>
+    </table>
+    <button onclick="addRow()">Ajouter un produit</button>
+
+    <div class="total-display">Total général: <span id="grandTotal">0</span> FCFA</div>
+
+    <button onclick="generateInvoice()">Générer le PDF</button>
+
+    <div class="invoice-list">
+        <h2>Factures enregistrées</h2>
+        <ul id="invoiceList"></ul>
+    </div>
+</div>
+
+<script>
+const { jsPDF } = window.jspdf;
+
+// --- Gestion dynamique des produits ---
+function addRow() {
+    const tbody = document.getElementById('productsBody');
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td><input type="text" class="productName"></td>
+        <td><input type="number" class="productQty" value="0" min="0"></td>
+        <td><input type="number" class="productPrice" value="0" min="0"></td>
+        <td class="productTotal">0</td>
+        <td><button onclick="removeRow(this)">X</button></td>
+    `;
+    tbody.appendChild(row);
+    updateTotals();
+}
+
+function removeRow(btn) {
+    btn.closest('tr').remove();
+    updateTotals();
+}
+
+function updateTotals() {
+    let grandTotal = 0;
+    document.querySelectorAll('#productsBody tr').forEach(row => {
+        const qty = parseFloat(row.querySelector('.productQty').value) || 0;
+        const price = parseFloat(row.querySelector('.productPrice').value) || 0;
+        const total = qty * price;
+        row.querySelector('.productTotal').textContent = total;
+        grandTotal += total;
+    });
+    document.getElementById('grandTotal').textContent = grandTotal;
+}
+
+// Calcul automatique
+document.addEventListener('input', e => {
+    if(e.target.classList.contains('productQty') || e.target.classList.contains('productPrice')) {
+        updateTotals();
+    }
+});
+
+// --- Gestion des factures ---
+function formatNumber(number) {
+    return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+function generateInvoice() {
+    const client = {
+        name: document.getElementById('clientName').value || "",
+        phone: document.getElementById('clientPhone').value || "",
+        address: document.getElementById('clientAddress').value || ""
+    };
+
+    const items = [];
+    document.querySelectorAll('#productsBody tr').forEach(row => {
+        items.push({
+            name: row.querySelector('.productName').value || "",
+            quantity: parseFloat(row.querySelector('.productQty').value) || 0,
+            price: parseFloat(row.querySelector('.productPrice').value) || 0
+        });
+    });
+
+    const total = items.reduce((sum, i) => sum + i.quantity * i.price, 0);
+    const orderNumber = Date.now().toString();
+    const order = { customer: client, items, total, orderNumber, date: new Date().toISOString() };
+
+    // Sauvegarder localement
+    const saved = JSON.parse(localStorage.getItem('invoices') || '[]');
+    saved.push(order);
+    localStorage.setItem('invoices', JSON.stringify(saved));
+    displayInvoices();
+
+    // Générer PDF
+    downloadInvoice(order);
+}
+
+function displayInvoices() {
+    const saved = JSON.parse(localStorage.getItem('invoices') || '[]');
+    const ul = document.getElementById('invoiceList');
+    ul.innerHTML = '';
+    saved.forEach(order => {
+        const li = document.createElement('li');
+        li.textContent = `Facture ${order.orderNumber} - Total: ${formatNumber(order.total)} FCFA`;
+        li.onclick = () => {
+            showInvoiceDetails(order);
+        };
+        ul.appendChild(li);
+    });
+}
+
+function showInvoiceDetails(order) {
+    let detail = `Facture N°: ${order.orderNumber}\nDate: ${new Date(order.date).toLocaleDateString()}\nClient: ${order.customer.name}\nTéléphone: ${order.customer.phone}\nAdresse: ${order.customer.address}\n\nProduits:\n`;
+    order.items.forEach((i, idx) => {
+        detail += `${idx+1}. ${i.name} | Qté: ${i.quantity} | Prix: ${i.price} | Total: ${i.price*i.quantity}\n`;
+    });
+    detail += `\nTotal: ${order.total} FCFA`;
+    if(confirm(detail + "\n\nCliquez sur ok pour régénérer le PDF ?")) {
+        downloadInvoice(order);
+    }
+}
+
+// --- Génération PDF ---
+function downloadInvoice(order) {
+    const pdf = new jsPDF('p','mm','a4');
+    let y = 20;
+
+    try { pdf.addImage("https://i.postimg.cc/3JBCwW1J/5913292883186796968-1.jpg", "JPEG", 15, 15, 30, 30); } catch(e){}
+
+    pdf.setFontSize(18); pdf.setFont(undefined,'bold');
+    pdf.text("ETS NIASS & FRÈRE",110,20,{align:'center'});
+    pdf.setFontSize(12); pdf.setFont(undefined,'normal');
+    pdf.text("Vente de pièces détachées véhicules",110,27,{align:'center'});
+    pdf.text("Dakar, Sénégal - Tél: +221 77 470 47 42",110,32,{align:'center'});
+
+    pdf.setFontSize(16); pdf.setFont(undefined,'bold'); pdf.text("FACTURE",160,20);
+    pdf.setFontSize(10); pdf.setFont(undefined,'normal');
+    pdf.text(`N°: ${order.orderNumber}`,160,27);
+    pdf.text(`Date: ${new Date(order.date).toLocaleDateString()}`,160,32);
+
+    y=45; pdf.line(15,y,195,y); y+=15;
+
+    // Infos entreprise et client
+    pdf.setFontSize(12); pdf.setFont(undefined,'bold');
+    pdf.text("Informations de l'entreprise:",20,y);
+    pdf.setFont(undefined,'normal');
+    pdf.text("ETS NIASS & FRÈRE",20,y+7);
+    pdf.text("Dakar, Sénégal",20,y+14);
+    pdf.text("Tél: +221 77 470 47 42",20,y+21);
+    pdf.text("NINEA: 004328763D0",20,y+28);
+
+    const clientX = 125;
+    pdf.setFont(undefined,'bold'); pdf.text("Facturé à:",clientX,y);
+    pdf.setFont(undefined,'normal');
+    pdf.text(order.customer.name,clientX,y+7);
+    pdf.text(order.customer.phone,clientX,y+14);
+    pdf.text(order.customer.address,clientX,y+21);
+
+    y+=35;
+
+    // Tableau produits
+    pdf.setFillColor(240,240,240);
+    pdf.rect(15,y,180,10,'F');
+    pdf.setFont(undefined,'bold');
+    pdf.text("Description",20,y+7);
+    pdf.text("Prix unitaire",110,y+7,{align:'right'});
+    pdf.text("Quantité",140,y+7,{align:'right'});
+    pdf.text("Total",180,y+7,{align:'right'});
+    y+=10; pdf.setFont(undefined,'normal');
+
+    order.items.forEach(item=>{
+        if(y>250){pdf.addPage();y=20;}
+        const splitName = pdf.splitTextToSize(item.name,70);
+        const rowHeight = Math.max(10,splitName.length*7);
+        pdf.text(splitName,20,y+5);
+        pdf.text(`${formatNumber(item.price)} FCFA`,110,y+5,{align:'right'});
+        pdf.text(`${item.quantity}`,140,y+5,{align:'right'});
+        pdf.text(`${formatNumber(item.price*item.quantity)} FCFA`,180,y+5,{align:'right'});
+        y+=rowHeight; pdf.line(15,y,195,y);
+    });
+
+    y+=10; pdf.setFont(undefined,'bold');
+    pdf.text("Sous-total:",140,y,{align:'right'});
+    pdf.text(`${formatNumber(order.total)} FCFA`,180,y,{align:'right'});
+    y+=7;
+    pdf.text("TVA (0%):",140,y,{align:'right'});
+    pdf.text("0 FCFA",180,y,{align:'right'});
+    y+=7;
+    pdf.text("Total:",140,y,{align:'right'});
+    pdf.text(`${formatNumber(order.total)} FCFA`,180,y,{align:'right'});
+
+    // Footer
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const footerY = pageHeight-25;
+    pdf.setFontSize(10);
+    pdf.text("ETS NIASS & FRÈRE - Siège social: Dakar, Sénégal - Tél: +221 77 470 47 42",
+             pdf.internal.pageSize.getWidth()/2,footerY,{align:'center'});
+    pdf.text("NINEA: 004328763D0 - RC: SN-DKR-2023-AB-789",
+             pdf.internal.pageSize.getWidth()/2,footerY+11,{align:'center'});
+
+    pdf.save(`Facture-${order.orderNumber}.pdf`);
+}
+
+// Afficher factures existantes au chargement
+displayInvoices();
+</script>
+</body>
+</html>
