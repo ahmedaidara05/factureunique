@@ -197,23 +197,25 @@ function downloadInvoice(order) {
 
     y=45; pdf.line(15,y,195,y); y+=15;
 
-    // Infos entreprise et client
-    pdf.setFontSize(12); pdf.setFont(undefined,'bold');
-    pdf.text("Informations de l'entreprise:",20,y);
-    pdf.setFont(undefined,'normal');
-    pdf.text("ETS NIASS & FRÈRE",20,y+7);
-    pdf.text("Dakar, Sénégal",20,y+14);
-    pdf.text("Tél: +221 77 470 47 42",20,y+21);
-    pdf.text("NINEA: 004328763D0",20,y+28);
+   // Client information only (left side)
+pdf.setFontSize(12);
+pdf.setFont(undefined, 'bold');
+pdf.text("Facturé à:", 20, y);
 
-    const clientX = 125;
-    pdf.setFont(undefined,'bold'); pdf.text("Facturé à:",clientX,y);
-    pdf.setFont(undefined,'normal');
-    pdf.text(order.customer.name,clientX,y+7);
-    pdf.text(order.customer.phone,clientX,y+14);
-    pdf.text(order.customer.address,clientX,y+21);
+y += 7;
+pdf.setFont(undefined, 'normal');
+pdf.text(order.customer.name, 20, y);
 
-    y+=35;
+y += 6;
+pdf.text(order.customer.phone, 20, y);
+
+y += 6;
+pdf.text(order.customer.email || "", 20, y);
+
+y += 6;
+pdf.text(order.customer.address, 20, y);
+
+y += 15;
 
     // Tableau produits
     pdf.setFillColor(240,240,240);
