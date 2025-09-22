@@ -182,13 +182,13 @@ function downloadInvoice(order) {
     const pdf = new jsPDF('p','mm','a4');
     let y = 20;
 
-    try { pdf.addImage("https://i.postimg.cc/3JBCwW1J/5913292883186796968-1.jpg", "JPEG", 15, 15, 30, 30); } catch(e){}
+    try { pdf.addImage("https://i.postimg.cc/Ss21d9Rp/LOGO.png", "PNG", 19, 4, 40, 40); } catch(e){}
 
     pdf.setFontSize(18); pdf.setFont(undefined,'bold');
     pdf.text("ETS NIASS & FRÈRE",110,20,{align:'center'});
     pdf.setFontSize(12); pdf.setFont(undefined,'normal');
-    pdf.text("Vente de pièces détachées véhicules",110,27,{align:'center'});
-    pdf.text("Dakar, Sénégal - Tél: +221 77 470 47 42",110,32,{align:'center'});
+    pdf.text("Réparation – Pièces détachées ",110,27,{align:'center'});
+    pdf.text("Vente & Location de véhicules",110,32,{align:'center'});
 
     pdf.setFontSize(16); pdf.setFont(undefined,'bold'); pdf.text("FACTURE",160,20);
     pdf.setFontSize(10); pdf.setFont(undefined,'normal');
@@ -251,11 +251,13 @@ y += 15;
     // Footer
     const pageHeight = pdf.internal.pageSize.getHeight();
     const footerY = pageHeight-25;
-    pdf.setFontSize(10);
-    pdf.text("ETS NIASS & FRÈRE - Siège social: Dakar, Sénégal - Tél: +221 77 470 47 42",
+    pdf.setFontSize(8);
+    pdf.text("Route de Sangalkam près de la station de pesage - Sénégal",
              pdf.internal.pageSize.getWidth()/2,footerY,{align:'center'});
-    pdf.text("NINEA: 004328763D0 - RC: SN-DKR-2023-AB-789",
-             pdf.internal.pageSize.getWidth()/2,footerY+11,{align:'center'});
+    pdf.text("Tel: +221 70 878 19 89 - 77 470 47 42 / Email: etsiniasseetfreres@yahoo.com",
+             pdf.internal.pageSize.getWidth()/2,footerY+7,{align:'center'});
+pdf.text("CPTE: CORISBANK SN213 01018 005058724101 42 - NINEA: 004119964 - RCCM: SN THS 2009.A.2320",
+         pdf.internal.pageSize.getWidth()/2,footerY+13,{align:'center'});
 
     pdf.save(`Facture-${order.orderNumber}.pdf`);
 }
