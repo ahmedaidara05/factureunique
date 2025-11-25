@@ -64,8 +64,12 @@
         </tbody>
     </table>
     <button onclick="addRow()">Ajouter un produit</button>
-
-    <div class="total-display">Total général: <span id="grandTotal">0</span> FCFA</div>
+<div class="total-display">
+    <div>Sous-total: <span id="subTotal">0</span> FCFA</div>
+    <div>TVA (18%): <span id="tvaAmount">0</span> FCFA</div>
+    <div><strong>Total TTC: <span id="totalTTC">0</span> FCFA</strong></div>
+</div>
+    
 
     <button onclick="generateInvoice()">Générer le PDF</button>
 
@@ -99,17 +103,30 @@ function removeRow(btn) {
 }
 
 function updateTotals() {
-    let grandTotal = 0;
+    let sousTotal = 0;
+    
+    // Calcul du sous-total
     document.querySelectorAll('#productsBody tr').forEach(row => {
         const qty = parseFloat(row.querySelector('.productQty').value) || 0;
         const price = parseFloat(row.querySelector('.productPrice').value) || 0;
         const total = qty * price;
+      const tva = total * 0.18;
+const totalTTC = total + tva;
         row.querySelector('.productTotal').textContent = total;
-        grandTotal += total;
+        sousTotal += total;
     });
-    document.getElementById('grandTotal').textContent = grandTotal;
+    
+    // Calcul TVA et Total TTC
+    const tva = sousTotal * 0.18;
+    const totalTTC = sousTotal + tva;
+    
+    // Affichage
+    document.getElementById('subTotal').textContent = formatNumber(sousTotal);
+    document.getElementById('tvaAmount').textContent = formatNumber(tva);
+    document.getElementById('totalTTC').textContent = formatNumber(totalTTC);
 }
 
+  
 // Calcul automatique
 document.addEventListener('input', e => {
     if(e.target.classList.contains('productQty') || e.target.classList.contains('productPrice')) {
@@ -238,15 +255,19 @@ y += 15;
         y+=rowHeight; pdf.line(15,y,195,y);
     });
 
-    y+=10; pdf.setFont(undefined,'bold');
-    pdf.text("Sous-total:",140,y,{align:'right'});
-    pdf.text(`${formatNumber(order.total)} FCFA`,180,y,{align:'right'});
-    y+=7;
-    pdf.text("TVA (0%):",140,y,{align:'right'});
-    pdf.text("0 FCFA",180,y,{align:'right'});
-    y+=7;
-    pdf.text("Total:",140,y,{align:'right'});
-    pdf.text(`${formatNumber(order.total)} FCFA`,180,y,{align:'right'});
+  y+=10; pdf.setFont(undefined,'bold');
+const sousTotal = order.total;
+const tva = sousTotal * 0.18;
+const totalTTC = sousTotal + tva;
+
+pdf.text("Sous-total:",140,y,{align:'right'});
+pdf.text(`${formatNumber(sousTotal)} FCFA`,180,y,{align:'right'});
+y+=7;
+pdf.text("TVA (18%):",140,y,{align:'right'});
+pdf.text(`${formatNumber(tva)} FCFA`,180,y,{align:'right'});
+y+=7;
+pdf.text("Total TTC:",140,y,{align:'right'});
+pdf.text(`${formatNumber(totalTTC)} FCFA`,180,y,{align:'right'});
 
     // Footer
     const pageHeight = pdf.internal.pageSize.getHeight();
