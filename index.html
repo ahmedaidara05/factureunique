@@ -165,7 +165,7 @@ function generateInvoice() {
     // Récupérer les nouvelles informations
     const invoiceNumber = document.getElementById('invoiceNumber').value || "FACT-" + Date.now();
     const invoiceDate = document.getElementById('invoiceDate').value || new Date().toISOString().split('T')[0];
-    const tvaRate = parseFloat(document.getElementById('tvaRate').value) || 18;
+    const tvaRate = parseFloat(document.getElementById('tvaRate').value) || 0;
     
     const client = {
         name: document.getElementById('clientName').value || "",
@@ -187,13 +187,14 @@ function generateInvoice() {
     const tva = sousTotal * (tvaRate / 100);
     const totalTTC = sousTotal + tva;
     
+    // CRÉER L'OBJET ORDER AVEC TOUTES LES DONNÉES
     const order = { 
         customer: client, 
         items, 
-        sousTotal,
-        tva,
-        totalTTC,
-        tvaRate,
+        sousTotal,    // Calculé ici
+        tva,          // Calculé ici  
+        totalTTC,     // Calculé ici
+        tvaRate,      // Le taux de TVA (peut être 0)
         invoiceNumber, 
         date: invoiceDate,
         generatedDate: new Date().toISOString()
@@ -205,7 +206,7 @@ function generateInvoice() {
     localStorage.setItem('invoices', JSON.stringify(saved));
     displayInvoices();
 
-    // Générer PDF
+    // Générer PDF avec l'objet order COMPLET
     downloadInvoice(order);
 }
 
@@ -234,6 +235,7 @@ function showInvoiceDetails(order) {
     }
 }
 
+// --- Génération PDF ---
 // --- Génération PDF ---
 function downloadInvoice(order) {
     const pdf = new jsPDF('p','mm','a4');
@@ -311,22 +313,22 @@ function downloadInvoice(order) {
         pdf.line(15,y,195,y);
     });
 
-    // Totaux avec TVA personnalisée
-  // Totaux avec TVA personnalisée
-y+=10; pdf.setFont(undefined,'bold');
-pdf.text("Sous-total:",140,y,{align:'right'});
-pdf.text(`${formatNumber(order.sousTotal)} FCFA`,180,y,{align:'right'});
-
-// Afficher TVA SEULEMENT si > 0
-if (order.tvaRate > 0) {
-    y+=7;
-    pdf.text(`TVA (${order.tvaRate}%):`,140,y,{align:'right'});
-    pdf.text(`${formatNumber(order.tva)} FCFA`,180,y,{align:'right'});
-}
-
-y+=7;
-pdf.text("Total TTC:",140,y,{align:'right'});
-pdf.text(`${formatNumber(order.totalTTC)} FCFA`,180,y,{align:'right'});
+    // Totaux - UTILISER LES VALEURS DÉJÀ CALCULÉES dans l'objet order
+    y += 10; 
+    pdf.setFont(undefined,'bold');
+    pdf.text("Sous-total:",140,y,{align:'right'});
+    pdf.text(`${formatNumber(order.sousTotal)} FCFA`,180,y,{align:'right'});
+    
+    // Afficher TVA SEULEMENT si > 0
+    if (order.tvaRate > 0 && order.tva > 0) {
+        y += 7;
+        pdf.text(`TVA (${order.tvaRate}%):`,140,y,{align:'right'});
+        pdf.text(`${formatNumber(order.tva)} FCFA`,180,y,{align:'right'});
+    }
+    
+    y += 7;
+    pdf.text("Total TTC:",140,y,{align:'right'});
+    pdf.text(`${formatNumber(order.totalTTC)} FCFA`,180,y,{align:'right'});
 
     // Footer
     const pageHeight = pdf.internal.pageSize.getHeight();
