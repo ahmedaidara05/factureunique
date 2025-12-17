@@ -10,7 +10,7 @@
     .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);}
     .form-group { margin-bottom: 12px; }
     label { display: block; margin-bottom: 4px; font-weight: bold; }
-    input[type=text], input[type=number] { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; }
+    input[type=text], input[type=number], input[type="date"] { width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     table, th, td { border: 1px solid #ccc; }
     th, td { padding: 8px; text-align: center; }
@@ -28,6 +28,22 @@
 <h1> Facture Unique</h1>
 
 <div class="container">
+    <h2>Infos Facture</h2>
+    <div class="form-group">
+        <label>Numéro de Facture :</label>
+        <input type="text" id="invoiceNumber" value="FACT-2024-001">
+    </div>
+    
+    <div class="form-group">
+        <label>Date de Facture :</label>
+        <input type="date" id="invoiceDate">
+    </div>
+    
+    <div class="form-group">
+        <label>Taux TVA (%) :</label>
+        <input type="number" id="tvaRate" value="18" min="0" max="100" step="0.1">
+    </div>
+
     <h2>Infos Client</h2>
     <div class="form-group">
         <label>Nom du client :</label>
@@ -40,6 +56,10 @@
     <div class="form-group">
         <label>Adresse :</label>
         <input type="text" id="clientAddress">
+    </div>
+    <div class="form-group">
+        <label>Email :</label>
+        <input type="text" id="clientEmail">
     </div>
 
     <h2>Produits</h2>
@@ -64,13 +84,13 @@
         </tbody>
     </table>
     <button onclick="addRow()">Ajouter un produit</button>
-<div class="total-display">
-    <div>Sous-total: <span id="subTotal">0</span> FCFA</div>
-    <div>TVA (18%): <span id="tvaAmount">0</span> FCFA</div>
-    <div><strong>Total TTC: <span id="totalTTC">0</span> FCFA</strong></div>
-</div>
     
-
+    <div class="total-display">
+        <div>Sous-total: <span id="subTotal">0</span> FCFA</div>
+        <div id="tvaDisplay">TVA (18%): <span id="tvaAmount">0</span> FCFA</div>
+        <div><strong>Total TTC: <span id="totalTTC">0</span> FCFA</strong></div>
+    </div>
+    
     <button onclick="generateInvoice()">Générer le PDF</button>
 
     <div class="invoice-list">
@@ -110,23 +130,24 @@ function updateTotals() {
         const qty = parseFloat(row.querySelector('.productQty').value) || 0;
         const price = parseFloat(row.querySelector('.productPrice').value) || 0;
         const total = qty * price;
-      const tva = total * 0.18;
-const totalTTC = total + tva;
         row.querySelector('.productTotal').textContent = total;
         sousTotal += total;
     });
     
-    // Calcul TVA et Total TTC
-    const tva = sousTotal * 0.18;
+    // Récupérer le taux TVA personnalisé
+   const tvaRate = parseFloat(document.getElementById('tvaRate').value) || 0;
+    const tva = sousTotal * (tvaRate / 100);
     const totalTTC = sousTotal + tva;
+    
+    // Mettre à jour l'affichage TVA
+    const tvaDisplay = document.getElementById('tvaDisplay');
+    tvaDisplay.innerHTML = `TVA (${tvaRate}%): <span id="tvaAmount">${formatNumber(tva)}</span> FCFA`;
     
     // Affichage
     document.getElementById('subTotal').textContent = formatNumber(sousTotal);
-    document.getElementById('tvaAmount').textContent = formatNumber(tva);
     document.getElementById('totalTTC').textContent = formatNumber(totalTTC);
 }
 
-  
 // Calcul automatique
 document.addEventListener('input', e => {
     if(e.target.classList.contains('productQty') || e.target.classList.contains('productPrice')) {
@@ -134,16 +155,23 @@ document.addEventListener('input', e => {
     }
 });
 
-// --- Gestion des factures ---
+// Formater les nombres
 function formatNumber(number) {
-    return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return Math.round(number).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
+// --- Gestion des factures ---
 function generateInvoice() {
+    // Récupérer les nouvelles informations
+    const invoiceNumber = document.getElementById('invoiceNumber').value || "FACT-" + Date.now();
+    const invoiceDate = document.getElementById('invoiceDate').value || new Date().toISOString().split('T')[0];
+    const tvaRate = parseFloat(document.getElementById('tvaRate').value) || 18;
+    
     const client = {
         name: document.getElementById('clientName').value || "",
         phone: document.getElementById('clientPhone').value || "",
-        address: document.getElementById('clientAddress').value || ""
+        address: document.getElementById('clientAddress').value || "",
+        email: document.getElementById('clientEmail').value || ""
     };
 
     const items = [];
@@ -155,9 +183,21 @@ function generateInvoice() {
         });
     });
 
-    const total = items.reduce((sum, i) => sum + i.quantity * i.price, 0);
-    const orderNumber = Date.now().toString();
-    const order = { customer: client, items, total, orderNumber, date: new Date().toISOString() };
+    const sousTotal = items.reduce((sum, i) => sum + i.quantity * i.price, 0);
+    const tva = sousTotal * (tvaRate / 100);
+    const totalTTC = sousTotal + tva;
+    
+    const order = { 
+        customer: client, 
+        items, 
+        sousTotal,
+        tva,
+        totalTTC,
+        tvaRate,
+        invoiceNumber, 
+        date: invoiceDate,
+        generatedDate: new Date().toISOString()
+    };
 
     // Sauvegarder localement
     const saved = JSON.parse(localStorage.getItem('invoices') || '[]');
@@ -175,7 +215,7 @@ function displayInvoices() {
     ul.innerHTML = '';
     saved.forEach(order => {
         const li = document.createElement('li');
-        li.textContent = `Facture ${order.orderNumber} - Total: ${formatNumber(order.total)} FCFA`;
+        li.textContent = `Facture ${order.invoiceNumber} - ${order.date} - Total: ${formatNumber(order.totalTTC)} FCFA`;
         li.onclick = () => {
             showInvoiceDetails(order);
         };
@@ -184,12 +224,12 @@ function displayInvoices() {
 }
 
 function showInvoiceDetails(order) {
-    let detail = `Facture N°: ${order.orderNumber}\nDate: ${new Date(order.date).toLocaleDateString()}\nClient: ${order.customer.name}\nTéléphone: ${order.customer.phone}\nAdresse: ${order.customer.address}\n\nProduits:\n`;
+    let detail = `Facture N°: ${order.invoiceNumber}\nDate: ${order.date}\nClient: ${order.customer.name}\nTéléphone: ${order.customer.phone}\nEmail: ${order.customer.email || ''}\nAdresse: ${order.customer.address}\n\nProduits:\n`;
     order.items.forEach((i, idx) => {
-        detail += `${idx+1}. ${i.name} | Qté: ${i.quantity} | Prix: ${i.price} | Total: ${i.price*i.quantity}\n`;
+        detail += `${idx+1}. ${i.name} | Qté: ${i.quantity} | Prix: ${i.price} FCFA | Total: ${i.price*i.quantity} FCFA\n`;
     });
-    detail += `\nTotal: ${order.total} FCFA`;
-    if(confirm(detail + "\n\nCliquez sur ok pour régénérer le PDF ?")) {
+    detail += `\nSous-total: ${formatNumber(order.sousTotal)} FCFA\nTVA (${order.tvaRate}%): ${formatNumber(order.tva)} FCFA\nTotal TTC: ${formatNumber(order.totalTTC)} FCFA`;
+    if(confirm(detail + "\n\nCliquez sur OK pour régénérer le PDF ?")) {
         downloadInvoice(order);
     }
 }
@@ -199,40 +239,51 @@ function downloadInvoice(order) {
     const pdf = new jsPDF('p','mm','a4');
     let y = 20;
 
-    try { pdf.addImage("https://i.postimg.cc/Ss21d9Rp/LOGO.png", "PNG", 19, 4, 40, 40); } catch(e){}
+    try { 
+        pdf.addImage("https://i.postimg.cc/Ss21d9Rp/LOGO.png", "PNG", 19, 4, 40, 40); 
+    } catch(e){ 
+        console.log("Logo non chargé, continuation sans logo");
+    }
 
-    pdf.setFontSize(18); pdf.setFont(undefined,'bold');
+    pdf.setFontSize(18); 
+    pdf.setFont(undefined,'bold');
     pdf.text("ETS NIASS & FRÈRE",110,20,{align:'center'});
-    pdf.setFontSize(12); pdf.setFont(undefined,'normal');
+    pdf.setFontSize(12); 
+    pdf.setFont(undefined,'normal');
     pdf.text("Réparation – Pièces détachées ",110,27,{align:'center'});
     pdf.text("Vente & Location de véhicules",110,32,{align:'center'});
 
-    pdf.setFontSize(16); pdf.setFont(undefined,'bold'); pdf.text("FACTURE",160,20);
-    pdf.setFontSize(10); pdf.setFont(undefined,'normal');
-    pdf.text(`N°: ${order.orderNumber}`,160,27);
-    pdf.text(`Date: ${new Date(order.date).toLocaleDateString()}`,160,32);
+    pdf.setFontSize(16); 
+    pdf.setFont(undefined,'bold'); 
+    pdf.text("FACTURE",160,20);
+    pdf.setFontSize(10); 
+    pdf.setFont(undefined,'normal');
+    pdf.text(`N°: ${order.invoiceNumber}`,160,27);
+    pdf.text(`Date: ${order.date}`,160,32);
 
-    y=45; pdf.line(15,y,195,y); y+=15;
+    y = 45; 
+    pdf.line(15,y,195,y); 
+    y += 15;
 
-   // Client information only (left side)
-pdf.setFontSize(12);
-pdf.setFont(undefined, 'bold');
-pdf.text("Facturé à:", 20, y);
-
-y += 7;
-pdf.setFont(undefined, 'normal');
-pdf.text(order.customer.name, 20, y);
-
-y += 6;
-pdf.text(order.customer.phone, 20, y);
-
-y += 6;
-pdf.text(order.customer.email || "", 20, y);
-
-y += 6;
-pdf.text(order.customer.address, 20, y);
-
-y += 15;
+    // Informations client
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text("Facturé à:", 20, y);
+    
+    y += 7;
+    pdf.setFont(undefined, 'normal');
+    if(order.customer.name) pdf.text(order.customer.name, 20, y);
+    
+    y += 6;
+    if(order.customer.phone) pdf.text(order.customer.phone, 20, y);
+    
+    y += 6;
+    if(order.customer.email) pdf.text(order.customer.email, 20, y);
+    
+    y += 6;
+    if(order.customer.address) pdf.text(order.customer.address, 20, y);
+    
+    y += 15;
 
     // Tableau produits
     pdf.setFillColor(240,240,240);
@@ -242,49 +293,93 @@ y += 15;
     pdf.text("Prix unitaire",110,y+7,{align:'right'});
     pdf.text("Quantité",140,y+7,{align:'right'});
     pdf.text("Total",180,y+7,{align:'right'});
-    y+=10; pdf.setFont(undefined,'normal');
+    y += 10; 
+    pdf.setFont(undefined,'normal');
 
-    order.items.forEach(item=>{
-        if(y>250){pdf.addPage();y=20;}
-        const splitName = pdf.splitTextToSize(item.name,70);
-        const rowHeight = Math.max(10,splitName.length*7);
-        pdf.text(splitName,20,y+5);
-        pdf.text(`${formatNumber(item.price)} FCFA`,110,y+5,{align:'right'});
-        pdf.text(`${item.quantity}`,140,y+5,{align:'right'});
-        pdf.text(`${formatNumber(item.price*item.quantity)} FCFA`,180,y+5,{align:'right'});
-        y+=rowHeight; pdf.line(15,y,195,y);
+    order.items.forEach(item => {
+        if(y > 250) {
+            pdf.addPage();
+            y = 20;
+        }
+        const splitName = pdf.splitTextToSize(item.name || "", 70);
+        const rowHeight = Math.max(10, splitName.length * 7);
+        pdf.text(splitName, 20, y+5);
+        pdf.text(`${formatNumber(item.price)} FCFA`, 110, y+5, {align:'right'});
+        pdf.text(`${item.quantity}`, 140, y+5, {align:'right'});
+        pdf.text(`${formatNumber(item.price * item.quantity)} FCFA`, 180, y+5, {align:'right'});
+        y += rowHeight; 
+        pdf.line(15,y,195,y);
     });
 
-  y+=10; pdf.setFont(undefined,'bold');
-const sousTotal = order.total;
-const tva = sousTotal * 0.18;
-const totalTTC = sousTotal + tva;
-
+    // Totaux avec TVA personnalisée
+  // Totaux avec TVA personnalisée
+y+=10; pdf.setFont(undefined,'bold');
 pdf.text("Sous-total:",140,y,{align:'right'});
-pdf.text(`${formatNumber(sousTotal)} FCFA`,180,y,{align:'right'});
-y+=7;
-pdf.text("TVA (18%):",140,y,{align:'right'});
-pdf.text(`${formatNumber(tva)} FCFA`,180,y,{align:'right'});
+pdf.text(`${formatNumber(order.sousTotal)} FCFA`,180,y,{align:'right'});
+
+// Afficher TVA SEULEMENT si > 0
+if (order.tvaRate > 0) {
+    y+=7;
+    pdf.text(`TVA (${order.tvaRate}%):`,140,y,{align:'right'});
+    pdf.text(`${formatNumber(order.tva)} FCFA`,180,y,{align:'right'});
+}
+
 y+=7;
 pdf.text("Total TTC:",140,y,{align:'right'});
-pdf.text(`${formatNumber(totalTTC)} FCFA`,180,y,{align:'right'});
+pdf.text(`${formatNumber(order.totalTTC)} FCFA`,180,y,{align:'right'});
 
     // Footer
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const footerY = pageHeight-25;
+    const footerY = pageHeight - 25;
     pdf.setFontSize(8);
     pdf.text("Route de Sangalkam près de la station de pesage - Sénégal",
-             pdf.internal.pageSize.getWidth()/2,footerY,{align:'center'});
+             pdf.internal.pageSize.getWidth()/2, footerY, {align:'center'});
     pdf.text("Tel: +221 70 878 19 89 - 77 470 47 42 / Email: etsiniasseetfreres@yahoo.com",
-             pdf.internal.pageSize.getWidth()/2,footerY+7,{align:'center'});
-pdf.text("CPTE: CORISBANK SN213 01018 005058724101 42 - NINEA: 004119964 - RCCM: SN THS 2009.A.2320",
-         pdf.internal.pageSize.getWidth()/2,footerY+13,{align:'center'});
+             pdf.internal.pageSize.getWidth()/2, footerY+7, {align:'center'});
+    pdf.text("CPTE: CORISBANK SN213 01018 005058724101 42 - NINEA: 004119964 - RCCM: SN THS 2009.A.2320",
+             pdf.internal.pageSize.getWidth()/2, footerY+13, {align:'center'});
 
-    pdf.save(`Facture-${order.orderNumber}.pdf`);
+    pdf.save(`Facture-${order.invoiceNumber}.pdf`);
 }
 
-// Afficher factures existantes au chargement
-displayInvoices();
+// Initialiser les valeurs par défaut
+function initializeForm() {
+    // Date du jour par défaut
+    const today = new Date();
+    const formattedDate = today.toISOString().split('T')[0];
+    document.getElementById('invoiceDate').value = formattedDate;
+    
+    // Générer un numéro de facture automatique
+    const saved = JSON.parse(localStorage.getItem('invoices') || '[]');
+    const lastNumber = saved.length;
+    const year = today.getFullYear();
+    document.getElementById('invoiceNumber').value = `FACT-${year}-${(lastNumber + 1).toString().padStart(3, '0')}`;
+    
+    // Écouter les changements de TVA
+    document.getElementById('tvaRate').addEventListener('input', updateTotals);
+    
+    // Écouter les changements de quantité et prix
+    document.addEventListener('input', e => {
+        if(e.target.classList.contains('productQty') || e.target.classList.contains('productPrice')) {
+            updateTotals();
+        }
+    });
+    
+    // Initialiser les totaux
+    updateTotals();
+}
+
+// Démarrer l'application
+document.addEventListener('DOMContentLoaded', function() {
+    // Afficher les factures existantes
+    displayInvoices();
+    
+    // Initialiser le formulaire
+    initializeForm();
+    
+    // Mettre à jour les totaux initialement
+    updateTotals();
+});
 </script>
 </body>
 </html>
