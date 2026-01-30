@@ -89,6 +89,15 @@
         <div>Sous-total: <span id="subTotal">0</span> FCFA</div>
         <div id="tvaDisplay">TVA (18%): <span id="tvaAmount">0</span> FCFA</div>
         <div><strong>Total TTC: <span id="totalTTC">0</span> FCFA</strong></div>
+        <div id="totalInLetters" style="
+        margin-top: 10px;
+        padding: 8px;
+        background: #f8f9fa;
+        border-radius: 5px;
+        font-style: italic;
+        text-align: center;
+        border-left: 4px solid #1428A0;
+    "></div>
     </div>
     
     <button onclick="generateInvoice()">Générer le PDF</button>
@@ -102,6 +111,111 @@
 <script>
 const { jsPDF } = window.jspdf;
 
+  // Fonction de conversion nombre en lettres
+// Fonction de conversion nombre en lettres (version simplifiée et fiable)
+function numberToLetters(num) {
+    num = Math.round(num);
+    
+    // Tableaux pour la conversion
+    const units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf'];
+    const teens = ['dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+    const tens = ['', 'dix', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante-dix', 'quatre-vingt', 'quatre-vingt-dix'];
+    
+    if (num === 0) return 'zéro francs CFA';
+    
+    let result = '';
+    
+    // Fonction pour convertir les nombres < 1000
+    function convertLessThanThousand(n) {
+        let str = '';
+        
+        // Centaines
+        if (n >= 100) {
+            const hundreds = Math.floor(n / 100);
+            if (hundreds === 1) {
+                str += 'cent';
+            } else {
+                str += units[hundreds] + ' cent';
+            }
+            n %= 100;
+            if (n > 0) str += ' ';
+        }
+        
+        // 80 cas spécial
+        if (n === 80) {
+            return str + 'quatre-vingts';
+        }
+        
+        // Dizaines et unités
+        if (n >= 20) {
+            const tensDigit = Math.floor(n / 10);
+            const unitsDigit = n % 10;
+            
+            if (tensDigit === 7 || tensDigit === 9) {
+                // Cas spéciaux
+                const base = tensDigit === 7 ? 60 : 80;
+                const remainder = n - base;
+                
+                str += (tensDigit === 7 ? 'soixante' : 'quatre-vingt');
+                
+                if (remainder > 0) {
+                    if (remainder === 1) {
+                        str += '-et-un';
+                    } else if (remainder === 11) {
+                        str += '-onze';
+                    } else if (remainder < 10) {
+                        str += '-' + units[remainder];
+                    } else {
+                        str += '-' + teens[remainder - 10];
+                    }
+                } else if (tensDigit === 8) {
+                    str += 's';
+                }
+            } else {
+                str += tens[tensDigit];
+                if (unitsDigit > 0) {
+                    if (unitsDigit === 1 && tensDigit !== 8) {
+                        str += '-et-un';
+                    } else {
+                        str += '-' + units[unitsDigit];
+                    }
+                } else if (tensDigit === 8) {
+                    str += 's';
+                }
+            }
+        } else if (n >= 10) {
+            str += teens[n - 10];
+        } else if (n > 0) {
+            str += units[n];
+        }
+        
+        return str.trim();
+    }
+    
+    // Convertir par tranches
+    if (num >= 1000000) {
+        const millions = Math.floor(num / 1000000);
+        result += convertLessThanThousand(millions) + (millions > 1 ? ' millions ' : ' million ');
+        num %= 1000000;
+    }
+    
+    if (num >= 1000) {
+        const thousands = Math.floor(num / 1000);
+        if (thousands === 1) {
+            result += 'mille ';
+        } else {
+            result += convertLessThanThousand(thousands) + ' mille ';
+        }
+        num %= 1000;
+    }
+    
+    if (num > 0) {
+        if (result !== '') result += ' ';
+        result += convertLessThanThousand(num);
+    }
+    
+    return result.trim() + ' francs CFA';
+}
 // --- Gestion dynamique des produits ---
 function addRow() {
     const tbody = document.getElementById('productsBody');
@@ -135,7 +249,7 @@ function updateTotals() {
     });
     
     // Récupérer le taux TVA personnalisé
-   const tvaRate = parseFloat(document.getElementById('tvaRate').value) || 0;
+    const tvaRate = parseFloat(document.getElementById('tvaRate').value) || 0;
     const tva = sousTotal * (tvaRate / 100);
     const totalTTC = sousTotal + tva;
     
@@ -146,6 +260,10 @@ function updateTotals() {
     // Affichage
     document.getElementById('subTotal').textContent = formatNumber(sousTotal);
     document.getElementById('totalTTC').textContent = formatNumber(totalTTC);
+    
+    // AJOUTEZ CES DEUX LIGNES POUR AFFICHER EN LETTRES
+    const totalInLetters = document.getElementById('totalInLetters');
+    totalInLetters.textContent = `Arrêté à la somme de: ${numberToLetters(Math.round(totalTTC))}`;
 }
 
 // Calcul automatique
@@ -329,6 +447,12 @@ function downloadInvoice(order) {
     y += 7;
     pdf.text("Total TTC:",140,y,{align:'right'});
     pdf.text(`${formatNumber(order.totalTTC)} FCFA`,180,y,{align:'right'});
+  
+  y += 10; // Espace après le total
+pdf.setFont(undefined, 'italic');
+pdf.setFontSize(9);
+const amountInWords = numberToLetters(Math.round(order.totalTTC));
+pdf.text(`Arrêté à la somme de: ${amountInWords}`, 20, y, { maxWidth: 170 });
 
     // Footer
     const pageHeight = pdf.internal.pageSize.getHeight();
